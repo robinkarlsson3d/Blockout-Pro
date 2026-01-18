@@ -62,7 +62,7 @@ def make_update_callback(attr):
         slider_value = getattr(self, f"{attr}_slider") / 100.0
         #bp_functions.set_selected(attr, val)
 
-        bp_functions.set_edge_attribute(attribute_name = attr, value = slider_value, toggle = False)
+        bp_functions.set_edge_attribute(self, attribute_name = attr, value = slider_value, toggle = False)
 
     return callback
 
@@ -90,7 +90,7 @@ class OBJECT_OT_add_modifiers(bpy.types.Operator):
         description="Skips weighted and constrained fillets as well as Auto-UV", 
         default=False) # type: ignore
     
-    addSubD: bpy.props.BoolProperty(name="SubD", 
+    addSubD: bpy.props.BoolProperty(name="Subdivision Surface", 
         description="Include modifiers for SubD", 
         default=False) # type: ignore
     
@@ -114,10 +114,62 @@ class OBJECT_OT_add_modifiers(bpy.types.Operator):
         description="Include modifiers for Auto-UV", 
         default=False) # type: ignore
     
-    addShrinkwrap: bpy.props.BoolProperty(name="Shrinkwrap (Experimental)", 
+    addShrinkwrap: bpy.props.BoolProperty(name="Shrinkwrap", 
         description="Include modifiers for shrinkwrap", 
         default=False) # type: ignore
 
+    modify: bpy.props.BoolProperty(name="Modify settings", 
+        description="Modify Settings", 
+        default=False) # type: ignore
+
+    edgeChamferSize: bpy.props.FloatProperty(name="Size",
+        description="Edge Chamfer Size",
+        default=0.01,
+        min=0.001,
+        soft_max=0.1,
+        subtype='DISTANCE',
+        unit='LENGTH') # type: ignore
+    
+    edgeChamferSegments: bpy.props.IntProperty(name="Segments",
+        description="Edge Chamfer Segments",
+        default=2,
+        min=1,
+        soft_max=4)# type: ignore
+    
+    panelThickness: bpy.props.FloatProperty(name="Thickness",
+        description="Panel Thickness",
+        default=0.02,
+        min=0,
+        soft_max=0.1,
+        subtype='DISTANCE',
+        unit='LENGTH') # type: ignore
+
+    constrainedFilletSegments: bpy.props.IntProperty(name="Segments",
+        description="Constrained Fillet Segments",
+        default=12,
+        min=1,
+        soft_max=20)# type: ignore
+    
+    weightedFilletSize: bpy.props.FloatProperty(name="Size",
+        description="Weighted Fillet Size",
+        default=0.5,
+        min=0.0,
+        soft_max=10.0,
+        subtype='DISTANCE',
+        unit='LENGTH'
+        ) # type: ignore
+    
+    weightedFilletSegments: bpy.props.IntProperty(name="Segments",
+        description="Weighted Fillet Segments",
+        default=6,
+        min=1,
+        soft_max=20)# type: ignore
+    
+    subdLevels: bpy.props.IntProperty(name="Levels",
+        description="Subdivision Levels",
+        default=2,
+        min=1,
+        soft_max=4)# type: ignore
 
 
     def execute(self, context):
@@ -136,14 +188,51 @@ class OBJECT_OT_add_modifiers(bpy.types.Operator):
     def draw(self, context):
         layout = self.layout
 
-        layout.prop(self, "simplifiedStack")
         layout.prop(self, "addSubD")
-        layout.prop(self, "addFilletConstrained")
-        layout.prop(self, "addFilletWeighted")
-        layout.prop(self, "addPanelling")
+        row = self.layout.row (align=True)
+        row.enabled = self.addSubD
+        row.prop(self, "subdLevels")
+
+        layout.separator()
+
         layout.prop(self, "addEdgeChamfer")
-        layout.prop(self, "addAutoUV")
-        layout.prop(self, "addShrinkwrap")
+        row = self.layout.row (align=True)
+        row.enabled = self.addEdgeChamfer
+        row.prop(self, "edgeChamferSize", slider=True)
+        row.prop(self, "edgeChamferSegments")
+
+        layout.separator()
+
+        layout.prop(self, "addPanelling")
+        row = self.layout.row (align=True)
+        row.enabled = self.addPanelling
+        layout.prop(self, "panelThickness", slider=True)
+
+        layout.separator()
+        
+        layout.prop(self, "simplifiedStack")
+        if self.simplifiedStack == False:
+            layout.prop(self, "addFilletConstrained")
+            row = self.layout.row (align=True)
+            row.enabled = self.addFilletConstrained
+            row.prop(self, "constrainedFilletSegments")
+
+            layout.separator()
+
+            layout.prop(self, "addFilletWeighted")
+            row = self.layout.row (align=True)
+            row.enabled = self.addFilletWeighted
+            row.prop(self, "weightedFilletSize", slider=True)
+            row.prop(self, "weightedFilletSegments")
+
+            row = self.layout.row (align=True)
+            layout.prop(self, "addShrinkwrap")
+
+            layout.separator()
+
+            layout.label(text="Experimental: ")
+            layout.prop(self, "addAutoUV")
+            
 
 # ---------------- Modifier Visibility -----------------  
 class OBJECT_OT_mods_visibility(bpy.types.Operator):
@@ -153,8 +242,7 @@ class OBJECT_OT_mods_visibility(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        bp_functions.toggle_modifier_visibility()
-        self.report({'INFO'}, "Toggled visibility for BP modifiers")
+        bp_functions.toggle_modifier_visibility(self)
         return {'FINISHED'}
     
 # ---------------- SmartMirror -----------------
@@ -168,13 +256,13 @@ class OBJECT_OT_smart_mirror(bpy.types.Operator):
         description="Use root object instead of direct parent", 
         default=True) # type: ignore
     
-    mirrorX: bpy.props.BoolProperty(name="X-axis", 
+    mirrorX: bpy.props.BoolProperty(name="X", 
         description="Mirror along the X-axis", 
         default=False) # type: ignore
-    mirrorY: bpy.props.BoolProperty(name="Y-axis", 
+    mirrorY: bpy.props.BoolProperty(name="Y", 
         description="Mirror along the Y-axis", 
         default=True) # type: ignore
-    mirrorZ: bpy.props.BoolProperty(name="Z-axis", 
+    mirrorZ: bpy.props.BoolProperty(name="Z", 
         description="Mirror along the Z-axis", 
         default=False) # type: ignore
 
@@ -195,10 +283,27 @@ class OBJECT_OT_smart_mirror(bpy.types.Operator):
         layout = self.layout
 
         layout.prop(self, "mirrorByRoot")
-        layout.prop(self, "mirrorX")
-        layout.prop(self, "mirrorY")
-        layout.prop(self, "mirrorZ")
+
+        row = self.layout.row (align=True)
+        row.prop(self, "mirrorX", toggle = True)
+        row.prop(self, "mirrorY", toggle = True)
+        row.prop(self, "mirrorZ", toggle = True)
         
+# ---------------- InsertHelper -----------------
+class OBJECT_OT_insert_helper(bpy.types.Operator):
+    bl_idname = "bp.insert_helper"
+    bl_label = "Insert Helper"
+    bl_description = "Insert helper into hierarchy into place of active objects, parent all selected objects to new helper"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        bp_functions.smart_mirror(self)
+        self.report({'INFO'}, "SmartMirrored")
+        pass
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        return self.execute(context)
 
 # ---------------- Set -----------------
 class MESH_OT_set_edge_panel(bpy.types.Operator):
@@ -208,7 +313,7 @@ class MESH_OT_set_edge_panel(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        bp_functions.set_edge_attribute(attribute_name = "bp_panel_edge")
+        bp_functions.set_edge_attribute(self, attribute_name = "bp_panel_edge")
         return {'FINISHED'}
     
 class MESH_OT_set_edge_chamfer(bpy.types.Operator):
@@ -218,7 +323,7 @@ class MESH_OT_set_edge_chamfer(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        bp_functions.set_edge_attribute(attribute_name = "bevel_weight_edge")
+        bp_functions.set_edge_attribute(self, attribute_name = "bevel_weight_edge")
         return {'FINISHED'}
     
 class MESH_OT_set_edge_fillet_constrained(bpy.types.Operator):
@@ -228,7 +333,7 @@ class MESH_OT_set_edge_fillet_constrained(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        bp_functions.set_edge_attribute(attribute_name = "bp_bevel_fillet_constrained")
+        bp_functions.set_edge_attribute(self, attribute_name = "bp_bevel_fillet_constrained")
         return {'FINISHED'}
     
 class MESH_OT_set_edge_fillet_weighted(bpy.types.Operator):
@@ -238,7 +343,7 @@ class MESH_OT_set_edge_fillet_weighted(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        bp_functions.set_edge_attribute(attribute_name = "bp_bevel_fillet_weighted")
+        bp_functions.set_edge_attribute(self, attribute_name = "bp_bevel_fillet_weighted")
         return {'FINISHED'}
 
 class MESH_OT_set_edge_sharp(bpy.types.Operator):
@@ -248,7 +353,7 @@ class MESH_OT_set_edge_sharp(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        bp_functions.set_edge_attribute(attribute_name = "sharp_edge")
+        bp_functions.set_edge_attribute(self, attribute_name = "sharp_edge")
         return {'FINISHED'}
 
 # ---------------- Select -----------------
@@ -259,7 +364,7 @@ class MESH_OT_select_edge_panel(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        bp_functions.select_by_edge_attribute(attribute_name = "bp_panel_edge")
+        bp_functions.select_by_edge_attribute(self, attribute_name = "bp_panel_edge")
         return {'FINISHED'}
     
 class MESH_OT_select_edge_chamfer(bpy.types.Operator):
@@ -269,7 +374,7 @@ class MESH_OT_select_edge_chamfer(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        bp_functions.select_by_edge_attribute(attribute_name = "bevel_weight_edge")
+        bp_functions.select_by_edge_attribute(self, attribute_name = "bevel_weight_edge")
         return {'FINISHED'}
     
 class MESH_OT_select_edge_fillet_constrained(bpy.types.Operator):
@@ -279,7 +384,7 @@ class MESH_OT_select_edge_fillet_constrained(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        bp_functions.select_by_edge_attribute(attribute_name = "bp_bevel_fillet_constrained")
+        bp_functions.select_by_edge_attribute(self, attribute_name = "bp_bevel_fillet_constrained")
         return {'FINISHED'}
     
 class MESH_OT_select_edge_fillet_weighted(bpy.types.Operator):
@@ -289,7 +394,7 @@ class MESH_OT_select_edge_fillet_weighted(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        bp_functions.select_by_edge_attribute(attribute_name = "bp_bevel_fillet_weighted")
+        bp_functions.select_by_edge_attribute(self, attribute_name = "bp_bevel_fillet_weighted")
         return {'FINISHED'}
     
 class MESH_OT_select_edge_sharp(bpy.types.Operator):
@@ -299,7 +404,7 @@ class MESH_OT_select_edge_sharp(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        bp_functions.select_by_edge_attribute(attribute_name = "sharp_edge")
+        bp_functions.select_by_edge_attribute(self, attribute_name = "sharp_edge")
         return {'FINISHED'}
 
 # ---------------- Apply -----------------
@@ -314,7 +419,7 @@ class MESH_OT_apply_fillet_constrained(bpy.types.Operator):
         default=10) # type: ignore
 
     def execute(self, context):
-        bp_functions.apply_attribute(attribute_name = "bp_bevel_fillet_constrained", bevel_segments=self.bevel_segments)
+        bp_functions.apply_attribute(self, attribute_name = "bp_bevel_fillet_constrained", bevel_segments=self.bevel_segments)
         return {'FINISHED'}
     
     def invoke(self, context, event):
@@ -335,7 +440,7 @@ class MESH_OT_apply_fillet_weighted(bpy.types.Operator):
         default=1.0) # type: ignore
 
     def execute(self, context):
-        bp_functions.apply_attribute(attribute_name = "bp_bevel_fillet_weighted", 
+        bp_functions.apply_attribute(self, attribute_name = "bp_bevel_fillet_weighted", 
             bevel_segments=self.bevel_segments, bevel_width=self.bevel_width)
         return {'FINISHED'}
     
@@ -358,7 +463,7 @@ class MESH_OT_apply_edge_chamfer(bpy.types.Operator):
         default=1.0) # type: ignore
 
     def execute(self, context):
-        bp_functions.apply_attribute(attribute_name = "bevel_weight_edge", 
+        bp_functions.apply_attribute(self, attribute_name = "bevel_weight_edge", 
             bevel_segments=self.bevel_segments, bevel_width=self.bevel_width)
         return {'FINISHED'}
     
@@ -374,7 +479,7 @@ class MESH_OT_apply_panel(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        bp_functions.apply_attribute(attribute_name = "bp_panel_edge")
+        bp_functions.apply_attribute(self, attribute_name = "bp_panel_edge")
         return {'FINISHED'}
 
 class MESH_OT_apply_sharp(bpy.types.Operator):
@@ -384,7 +489,7 @@ class MESH_OT_apply_sharp(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        bp_functions.apply_attribute(attribute_name = "sharp_edge")
+        bp_functions.apply_attribute(self, attribute_name = "sharp_edge")
         return {'FINISHED'}
 
 # ---------------- Panel -----------------
@@ -396,11 +501,8 @@ class VIEW3D_PT_bp_panel(bpy.types.Panel):
     bl_category = "Blockout Pro"
 
     def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-
-        if not hasattr(scene, "edge_props"):
-            layout.label(text="Blockout not initialized")
+        if not hasattr(context.scene, "edge_props"):
+            self.layout.label(text="Blockout not initialized")
             return
 
         props = context.scene.edge_props
@@ -408,7 +510,7 @@ class VIEW3D_PT_bp_panel(bpy.types.Panel):
         is_edit = bp_functions.isEditMode()
 
         #MODIFIERS
-        layout.label(text="Object Mode:", icon="OBJECT_DATAMODE")
+        self.layout.label(text="Object Mode:", icon="OBJECT_DATAMODE")
         row = self.layout.row (align=True)
         row.enabled != is_edit
 
@@ -418,6 +520,10 @@ class VIEW3D_PT_bp_panel(bpy.types.Panel):
         button = row.operator("bp.add_modifiers", text="SubD", icon="SPHERE")
         button.addSubD = True
 
+        #Modify
+        #button = row.operator("bp.add_modifiers", text="", icon="SETTINGS")
+        #button.modify = True
+
         #Visibility
         row.operator("bp.modifier_visibility", text="", icon="HIDE_OFF")
 
@@ -426,8 +532,13 @@ class VIEW3D_PT_bp_panel(bpy.types.Panel):
         row.enabled != is_edit
         row.operator("bp.smart_mirror", text="SmartMirror", icon="MOD_MIRROR")
 
+        #INSERT HELPER
+        #row = self.layout.row (align=True)
+        #row.enabled != is_edit
+        #row.operator("bp.insert_helper", text="Insert Helper", icon="EMPTY_ARROWS")
+
         #EDIT TOOLS
-        layout.label(text="Edit Mode:", icon="EDITMODE_HLT")
+        self.layout.label(text="Edit Mode:", icon="EDITMODE_HLT")
         #PANELS    
         row = self.layout.row (align=True)
         row.enabled = is_edit
@@ -454,7 +565,7 @@ class VIEW3D_PT_bp_panel(bpy.types.Panel):
         row.enabled = is_edit
         row.prop(props, "bp_bevel_fillet_weighted_slider", slider=True)
         row.operator("bp.apply_fillet_weighted", text="", icon="TRIA_DOWN_BAR")
-        row.operator("bp.select_edge_fillet_constrained", text="", icon="RESTRICT_SELECT_OFF");  
+        row.operator("bp.select_edge_fillet_weighted", text="", icon="RESTRICT_SELECT_OFF");  
 
         #CONSTRAINED FILLETS
         row = self.layout.row (align=True)

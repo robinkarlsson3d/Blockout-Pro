@@ -1,9 +1,8 @@
 import bpy
 import bmesh
 from . import bp_modifiers
-#from . import bp_helpers as BP
 
-from bpy.props import StringProperty
+#from bpy.props import StringProperty
 
 def isEditMode():
     if bpy.context.mode == 'EDIT_MESH':
@@ -13,29 +12,62 @@ def isEditMode():
 
 #obj and obj.type == 'MESH' and context.mode == 'EDIT_MESH'
 
+def getSelectedObjects(self, MeshesOnly: bool = True):
+    #Use selected objects
+    objects = list(bpy.context.selected_objects)
+
+    #Use active object if empty selection
+    if not objects and bpy.context.mode == 'EDIT_MESH':
+        objects =  [bpy.context.active_object]
+
+    #Filter for meshes
+    if MeshesOnly:
+        filteredObjects = []
+        for obj in objects:
+            if obj.type == 'MESH':
+                filteredObjects.append(obj) 
+    else:
+        filteredObjects = objects
+
+    if not filteredObjects:
+        self.report({'WARNING'}, "No selected objects")
+        return []
+
+    return filteredObjects
+    
+
 def add_modifiers(self):
-    obj = bpy.context.object
-    bp_modifiers.verify_attributes_exist(obj)
+    #for obj in bpy.context.selected_objects:
+    objects  = getSelectedObjects(self)
 
-    bp_modifiers.reimport_nodegroups(self)
-    
-    if self.addSubD == True:
-        bp_modifiers.add_mod_subD(self, obj)
-    
-    if self.addFilletConstrained == True and self.simplifiedStack == False:
-        bp_modifiers.add_mod_constrainedFillets(self, obj)
-    
-    if self.addFilletWeighted == True and self.simplifiedStack == False:    
-        bp_modifiers.add_mod_weightedFillets(self, obj)
+    if not objects:
+        return {'CANCELLED'} 
 
-    if self.addPanelling == True: 
-        bp_modifiers.add_mod_panelize(self, obj)
-    
-    if self.addAutoUV == True and self.simplifiedStack == False:
-        bp_modifiers.add_mod_autoUV(self, obj)
+    for obj in objects:
+        bp_modifiers.verify_attributes_exist(obj)
 
-    if self.addEdgeChamfer == True:
-        bp_modifiers.add_mod_edgeChamfer(self, obj)
+        bp_modifiers.reimport_nodegroups(self)
+        
+        if self.addSubD == True:
+            bp_modifiers.add_mod_subD(self, obj)
+        
+        if self.addFilletConstrained == True and self.simplifiedStack == False:
+            bp_modifiers.add_mod_constrainedFillets(self, obj)
+        
+        if self.addFilletWeighted == True and self.simplifiedStack == False:    
+            bp_modifiers.add_mod_weightedFillets(self, obj)
+        
+        if self.addShrinkwrap == True and self.simplifiedStack == False: 
+            bp_modifiers.add_mod_shrinkwrap(self, obj)
+
+        if self.addPanelling == True: 
+            bp_modifiers.add_mod_panelize(self, obj)
+        
+        if self.addAutoUV == True and self.simplifiedStack == False:
+            bp_modifiers.add_mod_autoUV(self, obj)
+
+        if self.addEdgeChamfer == True:
+            bp_modifiers.add_mod_edgeChamfer(self, obj)
 
     return {'FINISHED'} 
 
@@ -45,46 +77,62 @@ def smart_mirror(self):
     #If in edit mode use the currently selected side as ground truth
     #Calculate bounding box if mirror is very close to center
 
-    obj = bpy.context.active_object
+    #obj = bpy.context.active_object
     
-    #FIND PARENT HELPER
-    parentObj = obj
-    while parentObj.parent is not None:
-        parentObj = parentObj.parent
-        if self.mirrorByRoot == False and parentObj.type == "EMPTY":
-            break
-    
+    #for obj in bpy.context.selected_objects:
+    objects  = getSelectedObjects(self)
 
-    
-    #DETERMINE WHICH AXIS IF ANY NEEDS TO BE FLIPPED
-    flipBisectAxis = [False, False, False]
-    #if isEditMode == False:
-    flipBisectAxis[0] = (obj.location.x - parentObj.location.x) < 0
-    flipBisectAxis[1] = (obj.location.y - parentObj.location.y) < 0
-    flipBisectAxis[2] = (obj.location.z - parentObj.location.z) < 0
-    #else:
+    if not objects:
+        return {'CANCELLED'} 
 
-    #DETERMINE WHICH AXIS NEED TO BE MIRRORED - Y AS DEFAULT
-    #mirrorAxis = [False, True, False]
-    mirrorAxis = [self.mirrorX, self.mirrorY, self.mirrorZ]
+    for obj in objects:
+        #FIND PARENT HELPER
+        parentObj = obj
+        while parentObj.parent is not None:
+            parentObj = parentObj.parent
+            if self.mirrorByRoot == False and parentObj.type == "EMPTY":
+                break
+        
 
-    #Special case if no parent exists
-    parentObjName = parentObj.name
-    if obj.name == parentObjName:
-        parentObjName = ""
+        
+        #DETERMINE WHICH AXIS IF ANY NEEDS TO BE FLIPPED
+        flipBisectAxis = [False, False, False]
+        #if isEditMode == False:
+        flipBisectAxis[0] = (obj.location.x - parentObj.location.x) < 0
+        flipBisectAxis[1] = (obj.location.y - parentObj.location.y) < 0
+        flipBisectAxis[2] = (obj.location.z - parentObj.location.z) < 0
+        #else:
 
-    #ADD MODIFIER
-    bp_modifiers.add_mod_mirror(self, obj, mirrorAxis, flipBisectAxis, parentObjName)
+        #DETERMINE WHICH AXIS NEED TO BE MIRRORED - Y AS DEFAULT
+        #mirrorAxis = [False, True, False]
+        mirrorAxis = [self.mirrorX, self.mirrorY, self.mirrorZ]
+
+        #Special case if no parent exists
+        parentObjName = parentObj.name
+        if obj.name == parentObjName:
+            parentObjName = ""
+
+        #ADD MODIFIER
+        bp_modifiers.add_mod_mirror(self, obj, mirrorAxis, flipBisectAxis, parentObjName)
 
     return {'FINISHED'} 
 
-def toggle_modifier_visibility():
-    total_mods = 0.0
-    visible_mods = 0.0
-    obj = bpy.context.object
+def toggle_modifier_visibility(self):
+
+    #obj = bpy.context.object
+    
 
     #Loop through all selected objects
-    for obj in bpy.context.selected_objects:
+    #for obj in bpy.context.selected_objects:
+
+    objects  = getSelectedObjects(self)
+
+    if not objects:
+        return {'CANCELLED'} 
+
+    for obj in objects:
+        total_mods = 0.0
+        visible_mods = 0.0
         #Count modifiers and visible modifiers
         for mod in obj.modifiers:
             if str(mod.name).find("BP") != -1:
@@ -98,10 +146,11 @@ def toggle_modifier_visibility():
         for mod in obj.modifiers:
             if str(mod.name).find("BP") != -1:
                 mod.show_viewport = visibility_status
-
+    
+    self.report({'INFO'}, "Toggled visibility for BP modifiers")
     return {'FINISHED'} 
 
-def select_by_edge_attribute(attribute_name):
+def select_by_edge_attribute(self, attribute_name):
     # Force object mode
     bpy.ops.object.mode_set(mode='OBJECT')
     
@@ -127,7 +176,7 @@ def select_by_edge_attribute(attribute_name):
 
     return {'FINISHED'} 
 
-def set_edge_attribute(attribute_name, value: float = 0.0, toggle: bool = True):
+def set_edge_attribute(self, attribute_name, value: float = 0.0, toggle: bool = True):
     obj = bpy.context.object
 
     if obj is None:
@@ -152,8 +201,6 @@ def set_edge_attribute(attribute_name, value: float = 0.0, toggle: bool = True):
     bp_modifiers.verify_attributes_exist(obj)
 
     # Access the target attribute
-    
-    #attribute = obj.data.attributes[attribute_name]
     attributes = obj.data.attributes
     if len(attributes[attribute_name].data) != len(obj.data.edges):
         raise RuntimeError("Attribute data size does not match number of edges.")
@@ -180,7 +227,7 @@ def set_edge_attribute(attribute_name, value: float = 0.0, toggle: bool = True):
     #Force back into edit mode
     bpy.ops.object.mode_set(mode='EDIT')
 
-def apply_attribute(attribute_name, bevel_segments: int = 10, bevel_width: float = 1.0):
+def apply_attribute(self, attribute_name, bevel_segments: int = 10, bevel_width: float = 1.0):
     obj = bpy.context.object
     mesh = obj.data
 
@@ -276,18 +323,13 @@ def apply_attribute(attribute_name, bevel_segments: int = 10, bevel_width: float
 
         pass
     elif attribute_name == "bp_panel_edge":
-        #bpy.ops.mesh.split()
-        #bpy.ops.mesh.rip_move(MESH_OT_rip={})
-
         toggled_automerge_off = False
 
         if bpy.context.scene.tool_settings.use_mesh_automerge == True:
             bpy.context.scene.tool_settings.use_mesh_automerge = False
             toggled_automerge_off = True
 
-        #bpy.ops.mesh.rip_move(MESH_OT_rip={"use_proportional_projected":False, "release_confirm":False, "use_accurate":False, "use_fill":False}, TRANSFORM_OT_translate={"value":(0, 0, 0), "orient_type":'GLOBAL', "orient_matrix":((1, 0, 0), (0, 1, 0), (0, 0, 1)), "orient_matrix_type":'GLOBAL', "constraint_axis":(False, False, False), "mirror":False, "use_proportional_edit":False, "proportional_edit_falloff":'SMOOTH', "proportional_size":1, "use_proportional_connected":False, "use_proportional_projected":False, "snap":False, "snap_elements":{'INCREMENT'}, "use_snap_project":False, "snap_target":'CLOSEST', "use_snap_self":True, "use_snap_edit":True, "use_snap_nonedit":True, "use_snap_selectable":False, "snap_point":(0, 0, 0), "snap_align":False, "snap_normal":(0, 0, 0), "gpencil_strokes":False, "cursor_transform":False, "texture_space":False, "remove_on_cancel":False, "use_duplicated_keyframes":False, "view2d_edge_pan":False, "release_confirm":False, "use_accurate":False, "use_automerge_and_split":False,})
         bpy.ops.mesh.edge_split()
-
 
         if toggled_automerge_off == True:
             bpy.context.scene.tool_settings.use_mesh_automerge = True

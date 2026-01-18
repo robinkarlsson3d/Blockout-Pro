@@ -113,10 +113,15 @@ def verify_attributes_exist(obj: Mesh):
     if bpy.context.mode != 'OBJECT':
         bpy.ops.object.mode_set(mode='OBJECT')
         toggledObjectMode = True
-    
+
+    #obj.shade_flat()
+    bpy.ops.object.shade_flat()
+
 
     attributes: bpy.types.Attribute = obj.data.attributes
     uv_layers: bpy.types.MeshUVLoopLayer = obj.data.uv_layers
+    vertexgroups: bpy.types.VertexGroups = obj.vertex_groups
+
     #color_layers: bpy.types.MeshLoopColorLayer = obj.data
     #bpy.ops.geometry.color_attribute_add(name="Color")
 
@@ -156,6 +161,15 @@ def verify_attributes_exist(obj: Mesh):
         attributes.new(name="bp_bevel_fillet_constrained", type='BOOLEAN', domain='EDGE')
     if "bp_panel_edge" not in attributes:
         attributes.new(name="bp_panel_edge", type='BOOLEAN', domain='EDGE')
+
+    #Add shrinkwrap vertexgroups if missing
+    if "bp_shrinkwrap_01" not in vertexgroups:
+        obj.vertex_groups.new(name="bp_shrinkwrap_01")
+    if "bp_shrinkwrap_02" not in vertexgroups:
+        obj.vertex_groups.new(name="bp_shrinkwrap_02")
+    if "bp_shrinkwrap_03" not in vertexgroups:
+        obj.vertex_groups.new(name="bp_shrinkwrap_03")
+
 
 
     #Clear custom normals
@@ -236,19 +250,17 @@ def setup_modifier(self, obj, name: str, modifierType: str, settings: dict):
     return mod
 
 def add_mod_subD(self, obj):
-    subd_level = bpy.context.scene.get("BP_settings_subd_levels", 2)
+    subd_level = self.subdLevels
     setup_modifier(self, obj, name = "SubD", modifierType = "NODES", settings = {
-        #"Socket_4": subd_level,
-        #"level": subd_level
+        "Socket_4": self.subdLevels,
     })
 
     return {"FINISHED"}
 
 def add_mod_constrainedFillets(self, obj):
-    constrainedfillet_segments = bpy.context.scene.get("BP_settings_constrainedfillet_segments", 12) #10 Segments by default
     setup_modifier(self, obj, name = "Bevel_Constrained", modifierType = "BEVEL", settings = {
         "width": 100,
-        "segments": constrainedfillet_segments,
+        "segments": self.constrainedFilletSegments,
         "offset_type": "PERCENT",
         "limit_method": "WEIGHT",
         "use_clamp_overlap": False,
@@ -260,18 +272,17 @@ def add_mod_constrainedFillets(self, obj):
 
     setup_modifier(self, obj, "Weld", modifierType = "WELD", settings = {
         "mode": "CONNECTED",
+        "merge_threshold": 0.0001
+
     })
 
     return {"FINISHED"}
 
 def add_mod_weightedFillets(self, obj):
-    weightedfillet_width = bpy.context.scene.get("BP_settings_weightedfillet_width", 0.5)       #Default width of 50
-    weightedfillet_segments = bpy.context.scene.get("BP_settings_weightedfillet_segments", 10) #10 Segments by default
-
     setup_modifier(self, obj, name = "Bevel_Weighted", modifierType = "BEVEL", settings = {
         "offset_type": "OFFSET",
-        "segments": weightedfillet_segments,
-        "width": weightedfillet_width,
+        "segments": self.weightedFilletSegments,
+        "width": self.weightedFilletSize,
         "limit_method": "WEIGHT",
         "use_clamp_overlap": False,
         "loop_slide": True,
@@ -284,14 +295,12 @@ def add_mod_weightedFillets(self, obj):
 def add_mod_panelize(self, obj):    
     setup_modifier(self, obj, name = "PanelSplit", modifierType = "NODES", settings = {}) 
 
-    thickness_value = bpy.context.scene.get("BP_settings_solidify_thickness_slider", 0.02) #2cm thickness by default
-
     setup_modifier(self, obj, name = "Panelize", modifierType = "SOLIDIFY", settings = {
         "use_rim_only": True,
         "use_even_offset": True,
         "offset": -1,
         "use_quality_normals": True,
-        "thickness": thickness_value,
+        "thickness": self.panelThickness,
     }) 
 
     return {'FINISHED'}
@@ -304,9 +313,6 @@ def add_mod_edgeChamfer(self, obj):
         #"Angle threshold": radian_threshold,
     }) 
 
-    edgechamfer_width = bpy.context.scene.get("BP_settings_edgechamfer_width", 0.01)    #Default width of 1.0cm
-    edgechamfer_segments = bpy.context.scene.get("BP_settings_edgechamfer_segments", 2) #2 Segments by default
-
     setup_modifier(self, obj, name = "EdgeChamfer", modifierType = "BEVEL", settings = {
         "limit_method": 'WEIGHT',
         "offset_type": 'WIDTH',
@@ -314,8 +320,8 @@ def add_mod_edgeChamfer(self, obj):
         "loop_slide": False,
         "miter_outer": 'MITER_ARC',
         "face_strength_mode": 'FSTR_ALL',
-        "width": edgechamfer_width,
-        "segments": edgechamfer_segments,
+        "width": self.edgeChamferSize,
+        "segments": self.edgeChamferSegments,
     })
 
     setup_modifier(self, obj, name = "WeightedNormals", modifierType = "WEIGHTED_NORMAL", settings = {
@@ -361,4 +367,12 @@ def add_mod_mirror(self, obj, mirrorAxis, flipBisectAxis, mirrorObject):
     #obj.modifier_move_to_index(modifier="SmartMirror", index=0)
 
     
+    return {'FINISHED'}
+
+def add_mod_shrinkwrap(self, obj):
+    #bpy.ops.object.modifier_add(type='SHRINKWRAP')
+    setup_modifier(self, obj, name="BP_Shrinkwrap_01", modifierType="SHRINKWRAP", settings = {
+        "vertex_group": "bp_shrinkwrap_01"
+    })
+
     return {'FINISHED'}
