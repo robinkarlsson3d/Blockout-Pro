@@ -1,7 +1,7 @@
-Script Name: BlockOut 2
+Script Name: BlockOut Pro
 Author: Robin Karlsson
 Email: robinkarlsson3d+scripts@gmail.com
-Year: 2025
+Date: October 2025
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License (GPL) as published by
